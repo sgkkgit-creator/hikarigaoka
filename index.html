@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<!-- apple-mobile-web-app-capable は付けない。
+     付けると iPhone がホーム画面アプリ(standalone)として起動し、印刷(PDF出力)ができなくなるため。 -->
+<meta name="apple-mobile-web-app-title" content="光が丘点検">
+<meta name="theme-color" content="#1668c1">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>光が丘 点検結果確認書</title>
+<style>
+/* ===================================================================
+   光が丘 点検結果確認書 スマホ版
+   Excel版(★光が丘個別報告書.xls)の使用中13帳票を1つの画面で入力します。
+   作業報告書スマホ版と同じ方式(単体HTML＋端末内保存＋印刷でPDF)。
+   =================================================================== */
+
+:root{
+  --bg:#f2f4f7; --card:#fff; --line:#d5dae2; --ink:#1a1f2b; --sub:#5e6b7f;
+  --guide:#e7f1fb; --guide-b:#8fbde8; --accent:#1668c1; --warn:#c0392b; --ok:#1b7a43;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{margin:0; padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Yu Gothic","游ゴシック体",YuGothic,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  font-size:16px; line-height:1.5;
+}
+
+/* ---------- 画面上部の操作バー ---------- */
+#bar{
+  position:sticky; top:0; z-index:50; background:#fff;
+  border-bottom:1px solid var(--line); padding:8px 10px;
+  display:flex; gap:8px; align-items:center;
+  padding-top:calc(8px + env(safe-area-inset-top,0px));
+}
+#bar h1{font-size:16px; margin:0; flex:1 1 auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+#bar .st{font-size:11px; color:var(--sub); flex:0 0 auto}
+button{
+  font:inherit; font-size:14px; padding:9px 14px; border-radius:8px;
+  border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer;
+  min-height:40px;
+}
+button.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700}
+button:active{opacity:.7}
+
+/* ---------- タブ ---------- */
+#tabs{display:flex; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:57px; z-index:49}
+#tabs button{
+  flex:1; border:0; border-bottom:3px solid transparent; border-radius:0;
+  padding:12px 0; color:var(--sub); font-weight:700; background:#fff;
+}
+#tabs button[aria-selected="true"]{color:var(--accent); border-bottom-color:var(--accent)}
+
+/* ---------- 入力フォーム ---------- */
+#form{padding:12px 10px calc(90px + var(--safe-b))}
+.sec{background:var(--card); border:1px solid var(--line); border-radius:10px; margin-bottom:12px; overflow:hidden}
+.sec>h2{
+  margin:0; padding:10px 12px; font-size:14px; background:#eef2f7;
+  border-bottom:1px solid var(--line); color:var(--sub); letter-spacing:.04em;
+}
+.sec>.body{padding:10px 12px}
+.f{margin-bottom:12px}
+.f:last-child{margin-bottom:0}
+.f>label{display:block; font-size:12px; color:var(--sub); margin-bottom:4px; font-weight:700}
+.f .hint{font-size:11px; color:var(--sub); font-weight:400; margin-left:4px}
+input[type=text],textarea{
+  width:100%; font:inherit; font-size:16px; padding:10px;
+  border:1px solid var(--guide-b); border-radius:8px; background:var(--guide);
+  color:var(--ink); -webkit-appearance:none; appearance:none;
+}
+textarea{resize:vertical; line-height:1.45}
+input:focus,textarea:focus{outline:2px solid var(--accent); outline-offset:-1px; background:#fff}
+.row{display:flex; gap:6px; align-items:center}
+.row>*{min-width:0}
+.sep{flex:0 0 auto; color:var(--sub); font-size:14px}
+.note{font-size:12px; color:var(--sub); margin:0 0 12px; line-height:1.6}
+.over{color:var(--warn); font-size:12px; margin-top:4px; font-weight:700; display:none}
+.over.on{display:block}
+/* 年月日: 必ず横一列 */
+.dater{flex-wrap:nowrap}
+.dater .dg{display:flex; align-items:center; gap:4px; flex:1 1 0; min-width:0}
+.dater input{flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px}
+.dater .era{flex:0 0 auto; font-size:14px; color:var(--sub)}
+.dater button{flex:0 0 auto; padding:8px 10px; font-size:13px}
+/* 号棟 - 号室 */
+.roomrow input.bango{flex:1.4 1 0}
+.roomrow input.room{flex:1 1 0}
+
+/* 選択ボタン(チップ) */
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+.chip{
+  padding:8px 13px; border:1px solid var(--guide-b); border-radius:18px; min-height:0;
+  background:#fff; color:var(--ink); font:inherit; font-size:13px; line-height:1.2; cursor:pointer;
+}
+.chip.on{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700}
+.chips.big .chip{font-size:14px; padding:10px 14px}
+.chip .x{margin-left:6px; color:#9aa3b0}
+
+/* 点検項目の入力 */
+.grp-h{font-size:13px; font-weight:700; color:var(--accent); margin:12px 0 4px; padding-bottom:3px; border-bottom:1px dashed var(--line)}
+.grp-h:first-child{margin-top:0}
+.it{display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #eef0f3}
+.it:last-child{border-bottom:0}
+.it .nm{flex:1 1 auto; min-width:0; font-size:14px; line-height:1.35}
+.it .nm small{display:block; color:var(--sub); font-size:11.5px}
+.it .nm.unset{color:var(--warn)}
+.seg{display:flex; flex:0 0 auto; border:1px solid #b9c0c8; border-radius:9px; overflow:hidden}
+.seg button{border:0; border-radius:0; min-width:54px; min-height:44px; padding:6px 0; font-size:16px; font-weight:700; background:#fff; color:#7b8594}
+.seg button+button{border-left:1px solid #b9c0c8}
+.seg button.on.good{background:var(--ok); color:#fff}
+.seg button.on.bad{background:var(--warn); color:#fff}
+#allGood{width:100%; margin-bottom:6px}
+#resSummary{font-size:12px; color:var(--sub); margin:0 0 6px}
+#ovAuto{font-size:12px; color:var(--sub); margin-top:6px}
+#nextRoom{width:100%; margin-top:2px}
+
+/* ---------- 設定・保存一覧 ---------- */
+#settings,#list{padding:12px 10px calc(90px + var(--safe-b)); display:none}
+#listNote{
+  background:#eef4ff; border:1px solid #cfe0ff; border-radius:8px;
+  padding:8px 10px; font-size:13px; line-height:1.5; margin-bottom:10px;
+}
+#listBox{display:flex; flex-direction:column; gap:8px}
+.rec{border:1px solid #d7dbe0; border-radius:8px; padding:10px; background:#fff; display:flex; align-items:center; gap:10px}
+.rec.cur{border-color:#1565c0; background:#f5f9ff}
+.rec-main{flex:1; min-width:0}
+.rec-d{font-size:12px; color:#555}
+.rec-c{font-weight:700; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rec-t{font-size:13px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rec-t .ng{color:var(--warn); font-weight:700}
+.rec-badge{font-size:11px; color:#1565c0; font-weight:700}
+.rec-badge.csv{color:#1b7a43}
+#csvBox{background:#f1f8f3; border:1px solid #bcdfca; border-radius:8px; padding:10px; margin-bottom:10px}
+#csvBox p{font-size:12.5px; color:#2d4a37; margin:0 0 8px; line-height:1.55}
+#csvBox button{width:100%}
+#csvBox button+button{margin-top:6px}
+.rec-btns{display:flex; flex-direction:column; gap:6px; flex-shrink:0}
+.rec-btns button{padding:6px 12px; font-size:13px; border-radius:6px; border:1px solid #b9c0c8; background:#fff; min-height:0}
+.rec-btns button.dup{color:#1565c0; border-color:#aecbea}
+.rec-btns button.exp{color:#1b7a43; border-color:#bcdfca}
+.rec-btns button.del{color:#c62828; border-color:#e6b8b8}
+#listTools{margin:0 0 10px}
+#listTools button{width:100%}
+#listEmpty{color:#666; font-size:14px; text-align:center; padding:24px 0}
+
+/* ---------- 下から出るシート(複製の項目選択) ---------- */
+#editSheet{position:fixed; inset:0; z-index:200; display:none}
+#editSheet.on{display:block}
+#editSheet .es-back{position:absolute; inset:0; background:rgba(0,0,0,.35)}
+#editSheet .es-panel{
+  position:absolute; left:0; right:0; bottom:0; background:#fff;
+  border-radius:14px 14px 0 0; box-shadow:0 -4px 20px rgba(0,0,0,.25);
+  padding:14px 14px calc(14px + var(--safe-b)); max-height:80vh; overflow:auto;
+}
+#editSheet .es-title{font-size:15px; font-weight:700; margin-bottom:10px}
+#editSheet label.dup-opt{display:flex; align-items:center; gap:11px; padding:11px 4px; border-bottom:1px solid var(--line); font-size:14px; cursor:pointer}
+#editSheet label.dup-opt input{width:20px; height:20px; flex:none; margin:0}
+#editSheet .es-hint{font-size:12px; color:var(--sub); margin-bottom:8px}
+#editSheet .es-btns{display:flex; gap:8px; margin-top:10px}
+#editSheet .es-btns button{flex:1}
+
+/* ---------- プレビュー ---------- */
+#preview{padding:10px 0 calc(90px + var(--safe-b)); display:none}
+#pvwrap{overflow:auto; -webkit-overflow-scrolling:touch; padding:0 10px}
+#pvscale{transform-origin:top left}
+#pvnote{font-size:12px; color:var(--sub); padding:0 14px 10px}
+
+/* ===== A4 の帳票本体 =====
+   Excel の列幅 A〜H=8.38, I=14.5 を100倍した比率でグリッドに割り付け。
+   右端・下端に余白マスを足し、罫線が用紙の縁に接して細らないようにしている。
+   高さは作業報告書スマホ版と同じく 248mm(iOS の印刷余白を見込んで1枚に収める)。 */
+#sheet{
+  width:180mm; height:248mm; background:#fff; display:grid;
+  grid-template-columns:repeat(8,838fr) 1450fr 60fr;
+  color:#000;
+  font-family:"MS PGothic","ＭＳ Ｐゴシック","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  position:relative;
+}
+#sheet .c{
+  display:flex; align-items:center; padding:0 2pt;
+  font-size:10pt; overflow:hidden; white-space:pre; min-width:0; min-height:0;
+  line-height:1.25;
+}
+#sheet .ctr{justify-content:center; text-align:center}
+#sheet .rgt{justify-content:flex-end; text-align:right}
+#sheet .top{align-items:flex-start; padding-top:3pt}
+#sheet .wrap{white-space:pre-wrap; word-break:break-all}
+#sheet .b{font-weight:700}
+#sheet .f9{font-size:9pt} #sheet .f11{font-size:11pt} #sheet .f12{font-size:12pt}
+#sheet .f16{font-size:16pt} #sheet .f18{font-size:18pt}
+#sheet .g{pointer-events:none}
+#sheet .round{border:1.25pt solid #000; border-radius:12pt; margin:2pt 0}
+#sheet .between{justify-content:space-between}
+/* 選んだ方を ○ で囲む(手書きの丸の代わり) */
+#sheet .opt{display:inline-flex; align-items:center; justify-content:center; width:1.75em; height:1.75em; border:1pt solid transparent; border-radius:50%}
+#sheet .opt.on{border-color:#000}
+#sheet .dot{margin:0 1.2em}
+#sheet .box{display:inline-flex; align-items:center; justify-content:center; width:.95em; height:.95em; border:1pt solid #000; font-size:.9em; line-height:1; margin-right:.3em; font-weight:700}
+/* タップで編集できるマス(印刷時は消す) */
+#sheet .tap{cursor:pointer; background:rgba(22,104,193,.06)}
+#sheet .tap:active{background:rgba(22,104,193,.20)}
+/* 罫線: 0.25pt は iPhone で消えるので最細でも 0.5pt */
+.l1{border-left:.5pt solid #000}    .t1{border-top:.5pt solid #000}
+.r1{border-right:.5pt solid #000}   .u1{border-bottom:.5pt solid #000}
+.l2{border-left:.75pt solid #000}   .t2{border-top:.75pt solid #000}
+.r2{border-right:.75pt solid #000}  .u2{border-bottom:.75pt solid #000}
+.l3{border-left:1.25pt solid #000}  .t3{border-top:1.25pt solid #000}
+.r3{border-right:1.25pt solid #000} .u3{border-bottom:1.25pt solid #000}
+.uw{border-bottom:2pt double #000}
+
+/* ---------- 印刷 ---------- */
+@page{ size:A4 portrait; margin:5mm; }
+@media print{
+  html,body{margin:0; padding:0; background:#fff; height:auto; overflow:visible}
+  #bar,#tabs,#form,#settings,#list,#pvnote,#foot,#editSheet{display:none !important}
+  #sheet .tap{background:transparent !important}
+  #preview{display:block !important; padding:0; margin:0}
+  #pvwrap{overflow:visible; padding:0; margin:0}
+  #pvscale{transform:none !important; height:auto !important; width:auto !important}
+  #sheet{box-shadow:none; margin:0 auto; break-inside:avoid; page-break-inside:avoid}
+}
+@media screen{ #sheet{box-shadow:0 1px 6px rgba(0,0,0,.18)} }
+
+/* ---------- 下部の固定ボタン ---------- */
+#foot{
+  position:fixed; left:0; right:0; bottom:0; z-index:60; background:#fff;
+  border-top:1px solid var(--line); padding:8px 10px calc(8px + var(--safe-b));
+  display:flex; gap:8px;
+}
+#foot button{flex:1}
+
+/* ---------- 予定タブ ---------- */
+#sched{padding:12px 10px calc(90px + var(--safe-b)); display:none}
+#schedNav{display:flex; align-items:center; gap:6px; margin-bottom:8px}
+#schedNav button{padding:8px 12px; min-height:40px}
+#schedNav .dlabel{flex:1; text-align:center; font-weight:700; font-size:16px}
+#schedDays{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px}
+#schedDays .chip{font-size:12px; padding:6px 10px}
+#schedCount{font-size:13px; color:var(--sub); margin:0 0 8px; display:flex; justify-content:space-between; align-items:center}
+#schedCount b{color:var(--accent); font-size:15px}
+#schedBox{display:flex; flex-direction:column; gap:8px}
+.si{border:1px solid #d7dbe0; border-radius:10px; background:#fff; padding:10px 12px; display:flex; align-items:center; gap:10px}
+.si.done{background:#f1f8f3; border-color:#bcdfca}
+.si.wip{background:#fff9db; border-color:#e0c96a}
+.si.skip{background:#f2f2f2; color:#6a7179}
+.si.extra{border-style:dashed; border-color:var(--accent)}
+.si.cur{box-shadow:0 0 0 2px var(--accent)}
+.si-main{flex:1; min-width:0}
+.si-room{font-weight:700; font-size:16px}
+.si-form{font-size:12.5px; color:#333}
+.si-prev{font-size:12px; color:var(--sub); margin-top:2px}
+.si-prev.ng{color:var(--warn); font-weight:700}
+.si-st{font-size:12px; font-weight:700; white-space:nowrap}
+.si-st.done{color:var(--ok)} .si-st.wip{color:#9a6b00} .si-st.skip{color:#6a7179} .si-st.todo{color:#8a94a3}
+/* 今回の点検結果 */
+.si.ng{background:#fdecea; border-color:#e6b8b8}
+.si-res{font-size:12.5px; margin-top:3px; line-height:1.45}
+.si-res .j{display:inline-block; font-weight:700; border-radius:4px; padding:0 6px; margin-right:6px; font-size:12px}
+.si-res .j.ok{background:#e3f2e8; color:var(--ok)}
+.si-res .j.ng{background:var(--warn); color:#fff}
+.si-res .j.un{background:#fff3cd; color:#9a6b00}
+.si-res .bad{color:var(--warn); font-weight:700}
+#schedCount .ngc{color:var(--warn); font-weight:700}
+.si-tag{display:inline-block; font-size:11px; color:var(--accent); border:1px solid var(--accent); border-radius:10px; padding:1px 7px; margin-left:6px; vertical-align:middle}
+.si-btns{display:flex; flex-direction:column; gap:6px; flex-shrink:0}
+.si-btns button{padding:6px 12px; font-size:13px; border-radius:6px; min-height:0}
+.si-btns button.skipb{color:#6a7179}
+#schedEmpty{color:#666; font-size:14px; text-align:center; padding:24px 0; line-height:1.7}
+#schedTools{display:flex; gap:8px; margin-top:12px}
+#schedTools button{flex:1}
+#schedNote{background:#eef4ff; border:1px solid #cfe0ff; border-radius:8px; padding:8px 10px; font-size:13px; line-height:1.5; margin-bottom:10px}
+/* 入力タブの上に出す昨年度の状況 */
+#prevBox{display:none; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:13px; line-height:1.55; background:#f2f4f7; border:1px solid var(--line)}
+#prevBox.on{display:block}
+#prevBox.ng{background:#fdecea; border-color:#e6b8b8}
+#prevBox .pj{font-weight:700}
+#prevBox.ng .pj{color:var(--warn)}
+#schedInfo{display:none; font-size:12.5px; color:var(--sub); margin:-4px 0 10px}
+#schedInfo.on{display:block}
+#btnDone{width:100%; margin-top:2px}
+#btnDone:disabled{opacity:.5}
+#doneHint{font-size:12px; color:var(--warn); margin-top:6px; display:none}
+#doneHint.on{display:block}
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <h1 id="barTitle">光が丘 点検結果確認書</h1>
+  <span class="st" id="saveState">—</span>
+</div>
+
+<div id="tabs" role="tablist">
+  <button id="tabSched" role="tab" aria-selected="false">予定</button>
+  <button id="tabForm" role="tab" aria-selected="true">入力</button>
+  <button id="tabPrev" role="tab" aria-selected="false">プレビュー</button>
+  <button id="tabList" role="tab" aria-selected="false">保存一覧</button>
+  <button id="tabConf" role="tab" aria-selected="false">設定</button>
+</div>
+
+<!-- ================= 予定 ================= -->
+<div id="sched">
+  <div id="schedNote">
+    台帳から書き出した予定ファイルを「<b>予定を読み込む</b>」で入れると、日付ごとに回る部屋が並びます。<br>
+    部屋を<b>タップ</b>すると、号室などが入った報告書が開きます。点検が終わったら「<b>完了して次へ</b>」。
+  </div>
+  <div id="schedNav">
+    <button class="ghost" id="schedPrev">◀</button>
+    <span class="dlabel" id="schedDate"></span>
+    <button class="ghost" id="schedNext">▶</button>
+    <button class="ghost" id="schedToday">今日</button>
+  </div>
+  <div id="schedDays"></div>
+  <p id="schedCount"></p>
+  <div id="schedBox"></div>
+  <div id="schedTools">
+    <button class="primary" id="btnExtra">＋ 予定外の部屋を追加</button>
+    <button class="ghost" id="btnSchedImport">予定を読み込む</button>
+    <input type="file" id="fileSched" accept="application/json,.json" hidden>
+  </div>
+</div>
+
+<!-- ================= 入力フォーム ================= -->
+<div id="form">
+
+  <div id="prevBox"></div>
+  <div id="schedInfo"></div>
+
+  <div class="sec">
+    <h2>帳票の種類</h2>
+    <div class="body">
+      <div class="chips big" id="catChips"></div>
+      <div class="chips" id="formChips" style="margin-top:10px"></div>
+    </div>
+  </div>
+
+  <div class="sec" id="secPlace">
+    <h2>団地・部屋</h2>
+    <div class="body">
+      <div class="f">
+        <label>団地名</label>
+        <input type="text" id="danchi" placeholder="例：コーシャハイム光が丘第一">
+        <div class="chips" id="danchiChips"></div>
+      </div>
+      <div class="f">
+        <label>号棟・号室 <span class="hint">例：3-3-1 と 205</span></label>
+        <div class="row roomrow">
+          <input type="text" class="bango" id="bango" inputmode="numeric" placeholder="3-3-1">
+          <span class="sep">-</span>
+          <input type="text" class="room" id="room" inputmode="numeric" placeholder="205">
+          <span class="sep">号室</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" id="secDate">
+    <h2>点検日</h2>
+    <div class="body" id="dates"></div>
+  </div>
+
+  <div class="sec" id="secRes">
+    <h2>点検結果</h2>
+    <div class="body">
+      <button class="ghost" id="allGood">未入力の項目をすべて「良・無・済」にする</button>
+      <p id="resSummary"></p>
+      <div id="items"></div>
+    </div>
+  </div>
+
+  <div class="sec" id="secOv">
+    <h2>総合の点検結果</h2>
+    <div class="body">
+      <div class="chips big" id="ovChips"></div>
+      <div id="ovAuto"></div>
+    </div>
+  </div>
+
+  <div class="sec" id="secRemark">
+    <h2>備考</h2>
+    <div class="body">
+      <div class="f">
+        <textarea id="remark" rows="3" placeholder="異常があった場合の内容など"></textarea>
+        <div class="over" id="overRemark"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec" id="secName">
+    <h2>確認者・作業者</h2>
+    <div class="body">
+      <div class="f"><label>確認者名</label><input type="text" id="checker"></div>
+      <div class="f"><label>作業者名</label><input type="text" id="worker"></div>
+      <p class="note" style="margin:0">空欄のままにすると、印刷後に押印・手書きできます。</p>
+    </div>
+  </div>
+
+  <button class="primary" id="btnDone">完了して次へ</button>
+  <div id="doneHint">「設定」タブで作業者名を入れると押せるようになります。</div>
+</div>
+
+<!-- ================= 設定 ================= -->
+<div id="settings">
+  <div class="sec">
+    <h2>名前の既定値</h2>
+    <div class="body">
+      <p class="note">新しく作る報告書に、最初から入れておく名前です。この端末にだけ保存されます。<br><b>作業者名は「完了して次へ」で報告書に記録される名前です。必ず入れてください。</b></p>
+      <div class="f"><label>確認者名</label><input type="text" id="defChecker"></div>
+      <div class="f"><label>作業者名</label><input type="text" id="defWorker"></div>
+    </div>
+  </div>
+  <div class="sec">
+    <h2>この端末の版</h2>
+    <div class="body">
+      <p class="note">版: <b><span id="appVer"></span></b><br>すべての端末でこの番号がそろっているか確かめてください。</p>
+    </div>
+  </div>
+  <div class="sec">
+    <h2>この端末の保存について</h2>
+    <div class="body">
+      <p class="note" style="margin:0">
+        入力内容は、この端末のブラウザ内にのみ保存されます。他の端末とは同期しません。<br>
+        ブラウザのデータを消去すると消えるため、仕上がった報告書は必ず PDF で残すか、「保存一覧」の「書き出し」で控えを取ってください。
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= プレビュー ================= -->
+<div id="preview">
+  <div id="pvnote">色つきのマスをタップすると入力できます（点検結果のマスはタップで ○ が切り替わります）。<br>下の「PDF出力」を押し、印刷画面で「PDFとして保存」を選んでください。</div>
+  <div id="pvwrap"><div id="pvscale"><div id="sheet"></div></div></div>
+</div>
+
+<!-- ================= 保存一覧 ================= -->
+<div id="list">
+  <div id="listNote">
+    「保存」を押すと、ここに貯まります。<b>開く</b>で入力に戻り、編集やPDF出力ができます。<br>
+    <b>複製</b>は団地名・帳票・点検日などを引き継いで次の部屋の報告書を作ります（号室と点検結果は空になります）。
+  </div>
+  <div id="csvBox">
+    <p><b>Excel台帳へ送る</b>：保存した報告書を1つのCSVファイルにまとめて書き出します。PCの「光が丘点検台帳.xlsm」で取り込むと、異常一覧・進捗・部屋の履歴・集計に使えます。同じ報告書を何度取り込んでも二重にはなりません。</p>
+    <button class="primary" id="btnCsvNew">まだ送っていない分を書き出し</button>
+    <button class="ghost" id="btnCsvAll">全部を書き出し</button>
+  </div>
+  <div id="listTools">
+    <button class="ghost" id="btnImport">ファイルから読み込み（追加）</button>
+    <input type="file" id="fileImport" accept="application/json,.json" multiple hidden>
+  </div>
+  <div id="listBox"></div>
+</div>
+
+<div id="foot">
+  <button class="ghost" id="btnNew">新規作成</button>
+  <button class="ghost" id="btnSaveRec">保存</button>
+  <button class="primary" id="btnPdf">PDF出力</button>
+</div>
+
+<div id="editSheet">
+  <div class="es-back"></div>
+  <div class="es-panel">
+    <div class="es-title"></div>
+    <div class="es-body"></div>
+    <div class="es-btns"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ===================================================================
+   1. 帳票の定義 (★光が丘個別報告書.xls の使用中シートから起こしたもの)
+   =================================================================== */
+// index.html を更新したら、ここと sw.js の CACHE を一緒に上げること。
+const APP_VER = "0.5";
+
+// 点検結果の選択肢。[良い方, 悪い方]
+const CH = { GN:["良","否"], NA:["無","有"], DN:["済","未"] };
+
+// 点検項目: key → [項目名, 点検内容(無ければ""), 選択肢]
+// key は帳票をまたいで共通。帳票を切り替えても、同じ項目の結果は引き継がれる。
+const ITEM = {
+  k_sk1:  ["仕切弁", "開閉動作の確認", "GN"],
+  k_sk2:  ["仕切弁\n（自動空気抜き弁含む）", "腐食・漏水の有無", "NA"],
+  k_gen:  ["減圧弁", "腐食・漏水・不具合　有無", "NA"],
+  k_tei:  ["定流量弁", "腐食・漏水の有無", "NA"],
+  k_pipe: ["給湯配管", "腐食・漏水の有無", "NA"],
+  k_hoon: ["保温材", "剥離の有無", "NA"],
+  k_teiX: ["定流量弁\n部品交換（カートリッジ・パッキン）", "", "DN"],
+  d_sk1:  ["仕切弁", "開閉動作の確認", "GN"],
+  d_sk2:  ["仕切弁\n（自動空気抜き弁含む）", "腐食・漏水の有無", "NA"],
+  d_sa:   ["差圧調整弁", "腐食・漏水の有無", "NA"],
+  d_st:   ["ストレーナ", "腐食・漏水の有無", "NA"],
+  d_pipe: ["暖房配管", "腐食・漏水の有無", "NA"],
+  d_hoon: ["保温材", "剥離の有無", "NA"],
+  d_saX:  ["差圧調整弁　部品交換\n（ﾀﾞｲﾔﾌﾗﾑ、Oﾘﾝｸﾞ、Lﾘｯﾌﾟｼｰﾙ、ｲﾝﾅｰﾊﾞﾙﾌﾞ、ｶﾞｽｹｯﾄ）", "", "DN"],
+  d_stX:  ["ストレーナ\n分解清掃（水洗い）、部品交換（ｼｰﾙﾃｰﾌﾟ）", "", "DN"],
+  t_sk2:  ["仕切弁", "腐食・漏水の有無", "NA"],
+  t_gen:  ["減圧弁\n（定流量弁内蔵型）", "腐食・漏水・不具合　有無", "NA"],
+  t_ryo:  ["給湯量", "", "GN"],
+  t_teiX: ["定流量弁\n部品交換（カートリッジ・パッキン・逆止弁）", "", "DN"],
+  t_gstX: ["減圧弁ストレーナ\n分解清掃（水洗い）、部品交換（Oリング）", "", "DN"],
+  r_fin:  ["熱交換器フィン\n送風機ファン", "汚れの有無", "NA"],
+  r_pipe: ["放熱器接続配管", "腐食・漏水の有無", "NA"],
+  r_valve:["温水開閉弁", "動作確認", "GN"],
+  r_motor:["送風機モーター\n送風機ファン", "異常音の有無", "NA"],
+  r_fuki: ["吹き出し", "温度の良否", "GN"],
+};
+const K1 = ["k_sk1","k_sk2","k_gen","k_tei","k_pipe","k_hoon"];
+const D1 = ["d_sk1","d_sk2","d_sa","d_st","d_pipe","d_hoon"];
+const R1 = ["r_fin","r_pipe","r_valve","r_motor","r_fuki"];
+const VISITS = ["住戸内暖房放熱器点検　訪問日（1回目）","住戸内暖房放熱器点検　訪問日（2回目）","住戸内暖房放熱器点検　訪問日（3回目）"];
+
+const CATS = [
+  { id:"bun", label:"分譲" },
+  { id:"ko",  label:"公社（コーシャハイム）" },
+  { id:"to",  label:"都営" },
+];
+// sheet = 元のExcelシート名(確認用)
+const FORMS = [
+  { id:"bun_k1",  cat:"bun", name:"給湯 1年", sheet:"分譲　給1年",   title:"点検結果確認書（給湯設備点検）",        period:"1年点検", dates:["給湯設備点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",K1]] },
+  { id:"bun_kd1", cat:"bun", name:"給湯・暖房 1年", sheet:"分譲　給暖1年", title:"点検結果確認書（給湯・暖房設備点検）", period:"1年点検", dates:["給湯設備点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",K1],["暖房設備",D1]] },
+  { id:"bun_k3",  cat:"bun", name:"給湯 3年", sheet:"分譲　給3年",   title:"点検結果確認書（給湯設備点検）",        period:"3年点検", dates:["給湯設備点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",K1.concat("k_teiX")]] },
+  { id:"bun_d3",  cat:"bun", name:"暖房 3年", sheet:"分譲　暖3年",   title:"点検結果確認書（暖房設備点検）",        period:"3年点検", dates:["給湯設備点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["暖房設備",D1.concat("d_saX","d_stX")]] },
+  { id:"ko_r1",   cat:"ko",  name:"室内放熱器 1年", sheet:"公　室内1年", title:"点検結果確認書（室内放熱器点検）",    period:"1年点検", dates:VISITS, hdr:"点検内容", area:"住戸内", groups:[["暖房放熱器",R1]] },
+  { id:"ko_r3",   cat:"ko",  name:"室内放熱器 3年", sheet:"公　室内3年", title:"点検結果確認書（室内放熱器点検）",    period:"3年点検", dates:VISITS, hdr:"点検内容", area:"住戸内", groups:[["暖房放熱器",R1]] },
+  { id:"ko_kd1",  cat:"ko",  name:"給湯・暖房 1年", sheet:"公　給暖1年", title:"点検結果確認書（給湯・暖房設備点検）", period:"1年点検", dates:["給湯・暖房設備点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",K1],["暖房設備",D1]] },
+  { id:"ko_k3",   cat:"ko",  name:"給湯 3年", sheet:"公　給3年",     title:"点検結果確認書（給湯設備点検）",        period:"3年点検", dates:["給湯設備点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",K1.concat("k_teiX")]] },
+  { id:"ko_d3",   cat:"ko",  name:"暖房 3年", sheet:"公　暖3年",     title:"点検結果確認書（暖房設備点検）",        period:"3年点検", dates:["暖房設備点検日"], hdr:"作業内容", area:"メーターボックス内", groups:[["暖房設備",D1.concat("d_saX","d_stX")]] },
+  { id:"to23_k1", cat:"to",  name:"第2・第3 給湯 1年", sheet:"都2、3　給1年", title:"点検結果確認書", period:"1年点検", dates:["点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",["k_sk1","t_sk2","t_gen","k_pipe","k_hoon","t_ryo"]]] },
+  { id:"to23_k3", cat:"to",  name:"第2・第3 給湯 3年", sheet:"都2、3　給3年", title:"点検結果確認書", period:"3年点検", dates:["点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",["k_sk1","t_sk2","t_gen","k_pipe","k_hoon","t_ryo","t_teiX","t_gstX"]]] },
+  { id:"to1_k1",  cat:"to",  name:"第1 給湯 1年（減圧弁なし）", sheet:"都1　給1年 (減なし)", title:"点検結果確認書", period:"1年点検", dates:["点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",["k_sk1","t_sk2","k_tei","k_pipe","k_hoon","t_ryo"]]] },
+  { id:"to1_k3",  cat:"to",  name:"第1 給湯 3年（減圧弁なし）", sheet:"都1　給3年 (減なし)", title:"点検結果確認書", period:"3年点検", dates:["点検日"], hdr:"点検内容", area:"メーターボックス内", groups:[["給湯設備",["k_sk1","t_sk2","k_tei","k_pipe","k_hoon","t_ryo","k_teiX"]]] },
+];
+// 団地名の候補(Excelに入っていた団地名)。入力した団地名も自動で候補に加わる。
+const DANCHI_PRESET = {
+  bun:["いちょう通り東第三団地","パークサイド光が丘団地","四季の香弐番街団地"],
+  ko: ["コーシャハイム光が丘第一","コーシャハイム光が丘第二","コーシャハイム光が丘第四"],
+  to: ["都営光が丘第1アパート","都営光が丘第2アパート","都営光が丘第3アパート"],
+};
+const REMARK_MAX = 4;   // 備考欄に収まる行数
+
+function formOf(id){ return FORMS.find(f => f.id === id) || FORMS[0]; }
+function itemsOf(F){ return F.groups.reduce((a,g)=> a.concat(g[1]), []); }
+
+/* ===================================================================
+   2. データと保存
+   =================================================================== */
+const KEY     = "hikarigaoka-houkoku-v1";          // 作業中の1件(自動保存)
+const KEY_REC = "hikarigaoka-houkoku-records-v1";  // 保存一覧
+const KEY_CUR = "hikarigaoka-houkoku-current-v1";  // 編集中の保存分ID
+const KEY_SET = "hikarigaoka-houkoku-settings-v1"; // 名前の既定値
+const KEY_DAN = "hikarigaoka-houkoku-danchi-v1";   // 入力した団地名の履歴
+const KEY_DUP = "hikarigaoka-houkoku-dupsel-v1";   // 複製で選んだ項目
+const KEY_SCH = "hikarigaoka-houkoku-schedule-v1"; // 予定(台帳から読み込んだ部屋＋予定外の部屋)
+
+let SET = { checker:"", worker:"" };
+let curId = null;
+function setCur(id){
+  curId = id;
+  try{ if (id) localStorage.setItem(KEY_CUR, id); else localStorage.removeItem(KEY_CUR); }catch(e){}
+}
+
+function blank(){
+  return {
+    form:"bun_k1",
+    danchi:"", bango:"", room:"",
+    dates:[{y:"",m:"",d:""},{y:"",m:"",d:""},{y:"",m:"",d:""}],  // y は令和の年
+    res:{},          // 項目key → 0(良い方) / 1(悪い方)
+    overall:"",      // "" = 自動, "ok" = 異常無し, "ng" = 異常有り
+    remark:"",
+    checker:SET.checker || "", worker:SET.worker || "",
+    schedKey:"",     // 予定タブのどの部屋から作ったか(予定外の部屋も含む)。手で新規作成したときは空
+    done:false       // 「完了して次へ」を押したか
+  };
+}
+let D = blank();
+
+// 欠けた項目があっても壊れないように初期値へ差し込む
+function normalize(o){
+  const b = blank();
+  if (!o || typeof o !== "object") return b;
+  for (const k in b){
+    if (o[k] === undefined) continue;
+    if (k === "dates" && Array.isArray(o.dates)) b.dates = b.dates.map((x,i)=> Object.assign(x, o.dates[i] || {}));
+    else if (k === "res" && typeof o.res === "object") b.res = Object.assign({}, o.res);
+    else b[k] = o[k];
+  }
+  return b;
+}
+
+/* ---- 入力の整形 ---- */
+function toHalf(s){
+  return String(s == null ? "" : s)
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/[－ー―‐−]/g,"-").replace(/　/g," ");
+}
+function digits(s){ return toHalf(s).replace(/[^\d]/g,""); }
+function esc(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function trimTail(s){ return String(s == null ? "" : s).replace(/[\s　]+$/,""); }
+function lineCount(s){ s = trimTail(s); return s === "" ? 0 : s.split("\n").length; }
+
+/* ---- 総合判定 ----
+   点検した項目に悪い方(否・有・未)が1つでもあれば「異常有り」、
+   全項目が良い方なら「異常無し」、未入力が残っていれば判定しない。 */
+function autoOverall(d){
+  d = d || D;
+  const keys = itemsOf(formOf(d.form));
+  let unset = 0;
+  for (const k of keys){
+    const v = d.res[k];
+    if (v === 1) return "ng";
+    if (v !== 0) unset++;
+  }
+  return unset ? "" : "ok";
+}
+function overall(d){ d = d || D; return d.overall || autoOverall(d); }
+
+/* ===================================================================
+   3. 入力フォーム
+   =================================================================== */
+const $ = id => document.getElementById(id);
+function el(tag, attrs, kids){
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs){
+    if (k === "class") e.className = attrs[k];
+    else if (k === "text") e.textContent = attrs[k];
+    else if (k === "html") e.innerHTML = attrs[k];
+    else e.setAttribute(k, attrs[k]);
+  }
+  (kids||[]).forEach(k => e.appendChild(k));
+  return e;
+}
+
+function buildCats(){
+  const box = $("catChips"); box.innerHTML = "";
+  CATS.forEach(c=>{
+    const b = el("button",{type:"button",class:"chip",text:c.label});
+    b.addEventListener("click", ()=>{
+      if (formOf(D.form).cat === c.id) return;
+      // 区分を切り替えたら、その区分の最初の帳票にする
+      D.form = FORMS.find(f => f.cat === c.id).id;
+      D.overall = "";
+      touch(); fillForm();
+    });
+    b.dataset.cat = c.id;
+    box.appendChild(b);
+  });
+}
+
+function fillCats(){
+  const F = formOf(D.form);
+  $("catChips").querySelectorAll(".chip").forEach(b=> b.classList.toggle("on", b.dataset.cat === F.cat));
+  const box = $("formChips"); box.innerHTML = "";
+  FORMS.filter(f => f.cat === F.cat).forEach(f=>{
+    const b = el("button",{type:"button",class:"chip" + (f.id === F.id ? " on" : ""),text:f.name});
+    b.addEventListener("click", ()=>{ D.form = f.id; D.overall = ""; touch(); fillForm(); });
+    box.appendChild(b);
+  });
+  $("barTitle").textContent = CATS.find(c=>c.id===F.cat).label.replace(/（.*）/,"") + "　" + F.name;
+}
+
+/* ---- 団地名の候補 ---- */
+function danchiHist(){ try{ const a = JSON.parse(localStorage.getItem(KEY_DAN)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function danchiRemember(name){
+  name = (name||"").trim();
+  if (!name) return;
+  const all = Object.values(DANCHI_PRESET).flat();
+  if (all.includes(name)) return;
+  const a = danchiHist().filter(x => x !== name);
+  a.unshift(name);
+  try{ localStorage.setItem(KEY_DAN, JSON.stringify(a.slice(0,15))); }catch(e){}
+}
+function fillDanchiChips(){
+  const F = formOf(D.form);
+  const box = $("danchiChips"); box.innerHTML = "";
+  const hist = danchiHist();
+  DANCHI_PRESET[F.cat].concat(hist).forEach(name=>{
+    const isHist = hist.includes(name);
+    const b = el("button",{type:"button",class:"chip" + (name === D.danchi ? " on" : "")});
+    b.appendChild(document.createTextNode(name));
+    if (isHist){
+      // 履歴は × で候補から外せる
+      const x = el("span",{class:"x",text:"×"});
+      x.addEventListener("click", ev=>{
+        ev.stopPropagation();
+        try{ localStorage.setItem(KEY_DAN, JSON.stringify(danchiHist().filter(v=>v!==name))); }catch(e){}
+        fillDanchiChips();
+      });
+      b.appendChild(x);
+    }
+    b.addEventListener("click", ()=>{ D.danchi = name; $("danchi").value = name; touch(); fillDanchiChips(); });
+    box.appendChild(b);
+  });
+}
+
+/* ---- 点検日 ---- */
+function fillDates(){
+  const F = formOf(D.form);
+  const box = $("dates"); box.innerHTML = "";
+  F.dates.forEach((label,i)=>{
+    const dt = D.dates[i];
+    const mk = (k, ph) => {
+      const inp = el("input",{type:"text",inputmode:"numeric",placeholder:ph,id:"dt"+i+k});
+      inp.value = dt[k] || "";
+      inp.addEventListener("input", ()=>{ dt[k] = digits(inp.value); touch(); });
+      inp.addEventListener("blur", ()=>{ inp.value = dt[k]; });
+      return inp;
+    };
+    const today = el("button",{type:"button",class:"ghost",text:"今日"});
+    today.addEventListener("click", ()=>{
+      const n = new Date();
+      dt.y = String(n.getFullYear() - 2018); dt.m = String(n.getMonth()+1); dt.d = String(n.getDate());
+      touch(); fillDates();
+    });
+    const now = new Date();
+    box.appendChild(el("div",{class:"f"},[
+      el("label",{text:label}),
+      el("div",{class:"row dater"},[
+        el("span",{class:"era",text:"令和"}),
+        el("span",{class:"dg"},[mk("y", String(now.getFullYear()-2018)), el("span",{class:"sep",text:"年"})]),
+        el("span",{class:"dg"},[mk("m", String(now.getMonth()+1)), el("span",{class:"sep",text:"月"})]),
+        el("span",{class:"dg"},[mk("d", String(now.getDate())), el("span",{class:"sep",text:"日"})]),
+        today
+      ])
+    ]));
+  });
+  if (F.dates.length > 1){
+    box.appendChild(el("p",{class:"note",text:"訪問した回の分だけ入れてください（空欄の回は印刷時も空欄のままです）。"}));
+  }
+}
+
+/* ---- 点検項目 ---- */
+function fillItems(){
+  const F = formOf(D.form);
+  const box = $("items"); box.innerHTML = "";
+  F.groups.forEach(([gname, keys])=>{
+    box.appendChild(el("div",{class:"grp-h",text:F.area + "　/　" + gname}));
+    keys.forEach(k=>{
+      const [name, content, ch] = ITEM[k];
+      const nm = el("div",{class:"nm" + (D.res[k] == null ? " unset" : "")});
+      nm.appendChild(document.createTextNode(name.split("\n")[0]));
+      const sub = [name.split("\n").slice(1).join(" "), content].filter(Boolean).join("　");
+      if (sub) nm.appendChild(el("small",{text:sub}));
+      const seg = el("div",{class:"seg"});
+      CH[ch].forEach((label, v)=>{
+        const b = el("button",{type:"button",class:(v===0?"good":"bad") + (D.res[k] === v ? " on" : ""),text:label});
+        b.addEventListener("click", ()=>{
+          D.res[k] = (D.res[k] === v) ? null : v;   // もう一度押すと取り消し
+          if (D.res[k] == null) delete D.res[k];
+          touch(); fillItems(); fillOverall();
+        });
+        seg.appendChild(b);
+      });
+      box.appendChild(el("div",{class:"it",id:"it_"+k},[nm, seg]));
+    });
+  });
+  const keys = itemsOf(F);
+  const done = keys.filter(k => D.res[k] === 0 || D.res[k] === 1).length;
+  const bad  = keys.filter(k => D.res[k] === 1).length;
+  $("resSummary").textContent = "入力済 " + done + " / " + keys.length + " 項目" + (bad ? "（悪い方 " + bad + " 件）" : "");
+}
+
+/* ---- 総合判定 ---- */
+function fillOverall(){
+  const box = $("ovChips"); box.innerHTML = "";
+  [["","自動"],["ok","異常無し"],["ng","異常有り"]].forEach(([v,label])=>{
+    const b = el("button",{type:"button",class:"chip" + (D.overall === v ? " on" : ""),text:label});
+    b.addEventListener("click", ()=>{ D.overall = v; touch(); fillOverall(); });
+    box.appendChild(b);
+  });
+  const a = autoOverall();
+  $("ovAuto").textContent = "自動判定: " + (a === "ok" ? "異常無し" : a === "ng" ? "異常有り" : "未入力の項目があるため判定前（印刷時は□のまま）")
+    + (D.overall ? "　※手動で指定中" : "");
+}
+
+// 入力タブの上に、予定から開いた部屋の昨年度の状況を出す
+function fillPrevBox(){
+  const box = $("prevBox"), info = $("schedInfo");
+  const it = D.schedKey ? schedFind(D.schedKey) : null;
+  if (!it){ box.className = ""; box.innerHTML = ""; info.className = ""; info.textContent = ""; return; }
+  info.className = "on";
+  info.textContent = (it.extra ? "予定外の部屋" : "予定 " + fmtDateJ(it.date)) + "（予定タブから開いた報告書）";
+  const has = it.prevJudge || it.prevItems || it.prevRemark;
+  if (!has){ box.className = ""; box.innerHTML = ""; return; }
+  const ng = it.prevJudge === "異常有り";
+  box.className = "on" + (ng ? " ng" : "");
+  box.innerHTML = '<span class="pj">昨年度：' + esc(it.prevJudge || "記録なし") + '</span>' +
+    (it.prevItems ? '<br>' + esc(it.prevItems) : '') +
+    (it.prevRemark ? '<br>' + esc(it.prevRemark) : '');
+}
+function fillDoneBtn(){
+  const ok = !!(SET.worker || "").trim();
+  $("btnDone").disabled = !ok;
+  $("doneHint").classList.toggle("on", !ok);
+  $("btnDone").textContent = D.done ? "完了済（もう一度押すと再保存して次へ）" : "完了して次へ";
+}
+
+function fillForm(){
+  fillPrevBox();
+  fillDoneBtn();
+  fillCats();
+  $("danchi").value = D.danchi; fillDanchiChips();
+  $("bango").value = D.bango; $("room").value = D.room;
+  fillDates();
+  fillItems();
+  fillOverall();
+  $("remark").value = D.remark; checkRemark();
+  $("checker").value = D.checker; $("worker").value = D.worker;
+}
+
+function checkRemark(){
+  const n = lineCount(D.remark);
+  const o = $("overRemark");
+  o.textContent = n > REMARK_MAX ? "備考欄に収まるのは" + REMARK_MAX + "行までです（いま" + n + "行）。" : "";
+  o.classList.toggle("on", n > REMARK_MAX);
+}
+
+function bindForm(){
+  $("danchi").addEventListener("input", e=>{ D.danchi = e.target.value; touch(); });
+  $("danchi").addEventListener("blur", ()=> fillDanchiChips());
+  $("bango").addEventListener("input", e=>{ D.bango = e.target.value; touch(); });
+  // 「3－3－1」「3 3 1」なども 3-3-1 にそろえる
+  $("bango").addEventListener("blur", e=>{
+    const v = toHalf(e.target.value).trim().replace(/[\s.・]+/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
+    e.target.value = v; D.bango = v; touch();
+  });
+  $("room").addEventListener("input", e=>{ D.room = e.target.value; touch(); });
+  $("room").addEventListener("blur", e=>{ const v = toHalf(e.target.value).trim(); e.target.value = v; D.room = v; touch(); });
+  $("remark").addEventListener("input", e=>{ D.remark = e.target.value; checkRemark(); touch(); });
+  $("checker").addEventListener("input", e=>{ D.checker = e.target.value; touch(); });
+  $("worker").addEventListener("input", e=>{ D.worker = e.target.value; touch(); });
+  $("allGood").addEventListener("click", ()=>{
+    itemsOf(formOf(D.form)).forEach(k=>{ if (D.res[k] !== 0 && D.res[k] !== 1) D.res[k] = 0; });
+    touch(); fillItems(); fillOverall();
+  });
+  /* 完了して次へ:
+     設定タブの作業者名を報告書に入れて保存し、予定の次の部屋(同じ日の未着手)へ進む。
+     予定から開いた報告書でなければ、保存して予定タブに戻る。 */
+  $("btnDone").addEventListener("click", ()=>{
+    const w = (SET.worker || "").trim();
+    if (!w){ alert("「設定」タブで作業者名を入れてください。"); showTab("conf"); return; }
+    const unset = itemsOf(formOf(D.form)).filter(k => D.res[k] !== 0 && D.res[k] !== 1).length;
+    if (unset && !confirm("点検結果に未入力が " + unset + " 項目あります。\nこのまま完了にしますか？")) return;
+    if (!D.room.trim() && !confirm("号室が空のままです。このまま完了にしますか？")) return;
+    D.worker = w;
+    D.done = true;
+    $("worker").value = w;
+    recSave();
+    const it = D.schedKey ? schedFind(D.schedKey) : null;
+    const next = it ? schedNextTodo(it.date, it.key) : null;
+    if (next){
+      schedOpen(next.key);
+      $("saveState").textContent = "完了しました。次の部屋：" + next.bango + "-" + next.room;
+    } else {
+      save();
+      schedDay = it ? it.date : schedDay;
+      showTab("sched");
+      $("saveState").textContent = it ? "完了しました。この日の未着手はありません" : "完了して保存しました";
+    }
+  });
+}
+
+/* ===================================================================
+   3-2. 予定(台帳から読み込んだ部屋の一覧)
+   1件 = { key, date:"2026/11/05", cat:"公社", formName:"給湯・暖房 1年", danchi, bango, room,
+           prevJudge, prevItems, prevRemark, extra:true(予定外), skip:{reason,memo,at,worker} }
+   =================================================================== */
+let schedDay = todayStr();
+function todayStr(){ const n = new Date(); return n.getFullYear() + "/" + pad2(n.getMonth()+1) + "/" + pad2(n.getDate()); }
+function fmtDateJ(s){
+  if (!s) return "日付なし";
+  const p = s.split("/");
+  if (p.length < 3) return s;
+  const d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+  return Number(p[1]) + "月" + Number(p[2]) + "日（" + "日月火水木金土"[d.getDay()] + "）";
+}
+function schedAll(){ try{ const a = JSON.parse(localStorage.getItem(KEY_SCH)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function schedWrite(a){ try{ localStorage.setItem(KEY_SCH, JSON.stringify(a)); return true; }catch(e){ return false; } }
+function schedFind(key){ return schedAll().find(x => x.key === key) || null; }
+function schedKeyOf(it){ return [it.date, it.danchi, toHalf(it.bango).trim(), toHalf(it.room).trim(), it.cat, it.formName].join("|"); }
+function schedUpdate(key, fn){ const a = schedAll(); const it = a.find(x => x.key === key); if (!it) return; fn(it); schedWrite(a); }
+// 区分名＋帳票名 → 帳票ID。見つからなければその区分の最初の帳票
+function formIdOf(catLabel, formName){
+  const c = CATS.find(x => x.label.replace(/（.*）/,"") === String(catLabel||"").replace(/（.*）/,"").trim());
+  const cid = c ? c.id : FORMS[0].cat;
+  const f = FORMS.find(x => x.cat === cid && x.name === String(formName||"").trim()) || FORMS.find(x => x.cat === cid);
+  return f.id;
+}
+// 予定の部屋に対応する保存済み報告書
+function schedRec(key){ return recAll().find(r => r.data && r.data.schedKey === key) || null; }
+function schedStatus(it){
+  if (it.skip) return { cls:"skip", label:"未実施（" + it.skip.reason + "）" };
+  const r = schedRec(it.key);
+  if (!r) return { cls:"todo", label:"未着手" };
+  if (r.data.done) return { cls:"done", label:"完了 " + (r.data.worker || "") };
+  return { cls:"wip", label:"入力中" };
+}
+/* 予定の部屋に対応する報告書の、今回の点検結果
+   { judge:"ok"|"ng"|"", bad:["暖房 ストレーナ：有",…], done:入力済み項目数, total:項目数 } */
+function schedResult(it){
+  const r = schedRec(it.key);
+  if (!r) return null;
+  const d = normalize(r.data), keys = itemsOf(formOf(d.form));
+  return {
+    judge: overall(d),
+    bad: keys.filter(k => d.res[k] === 1).map(k => GRP_OF[k[0]] + " " + ITEM[k][0].split("\n")[0] + "：" + CH[ITEM[k][2]][1]),
+    done: keys.filter(k => d.res[k] === 0 || d.res[k] === 1).length,
+    total: keys.length,
+    remark: trimTail(d.remark).split("\n")[0]
+  };
+}
+function schedResultHtml(it, st){
+  const res = schedResult(it);
+  if (!res || st.cls === "skip") return "";
+  let h = '<div class="si-res">';
+  if (res.judge === "ng") h += '<span class="j ng">異常有り</span>';
+  else if (res.judge === "ok") h += '<span class="j ok">異常無し</span>';
+  else h += '<span class="j un">入力 ' + res.done + '／' + res.total + '項目</span>';
+  if (res.bad.length) h += '<span class="bad">' + esc(res.bad.join("、")) + '</span>';
+  if (res.remark && res.judge === "ng") h += '<br>' + esc(res.remark);
+  return h + '</div>';
+}
+function schedSortKey(it){ return [it.danchi, toHalf(it.bango), String(toHalf(it.room)).padStart(6,"0"), it.formName].join("|"); }
+function schedOfDay(day){ return schedAll().filter(x => x.date === day).sort((a,b)=> schedSortKey(a) < schedSortKey(b) ? -1 : 1); }
+function schedNextTodo(day, afterKey){
+  const list = schedOfDay(day);
+  const i = list.findIndex(x => x.key === afterKey);
+  const order = list.slice(i+1).concat(list.slice(0, Math.max(i,0)));
+  return order.find(x => schedStatus(x).cls === "todo") || null;
+}
+// 予定の部屋を開く: 報告書があればそれを、無ければ号室などを入れた新しい報告書を作る
+function schedOpen(key){
+  const it = schedFind(key);
+  if (!it) return;
+  const r = schedRec(key);
+  if (r){ recOpen(r.id); return; }
+  const b = blank();
+  b.form = formIdOf(it.cat, it.formName);
+  b.danchi = it.danchi || ""; b.bango = it.bango || ""; b.room = it.room || "";
+  const p = (it.date || "").split("/");
+  if (p.length === 3) b.dates[0] = { y:String(Number(p[0]) - 2018), m:String(Number(p[1])), d:String(Number(p[2])) };
+  b.schedKey = key;
+  D = b;
+  setCur(null);
+  recSave();                     // すぐ一覧に載せ、予定タブで「入力中」と分かるようにする
+  fillForm(); save(); showTab("form");
+  window.scrollTo(0,0);
+  $("saveState").textContent = "報告書を準備しました：" + (it.bango ? it.bango + "-" : "") + it.room;
+}
+function renderSched(){
+  const days = {};
+  schedAll().forEach(x => { days[x.date] = (days[x.date]||0) + 1; });
+  const dayKeys = Object.keys(days).sort();
+  $("schedDate").textContent = fmtDateJ(schedDay) + (schedDay === todayStr() ? "　今日" : "");
+  const dbox = $("schedDays"); dbox.innerHTML = "";
+  dayKeys.forEach(d=>{
+    const b = el("button",{type:"button",class:"chip" + (d === schedDay ? " on" : ""),text:fmtDateJ(d).replace(/（.*/,"") + " " + days[d] + "戸"});
+    b.addEventListener("click", ()=>{ schedDay = d; renderSched(); });
+    dbox.appendChild(b);
+  });
+  const list = schedOfDay(schedDay);
+  const box = $("schedBox"); box.innerHTML = "";
+  const cnt = { done:0, wip:0, skip:0, todo:0 };
+  let ngCount = 0;
+  list.forEach(it => { cnt[schedStatus(it).cls]++; const r = schedResult(it); if (r && r.judge === "ng" && !it.skip) ngCount++; });
+  $("schedCount").innerHTML = list.length
+    ? '<span>完了 <b>' + cnt.done + '</b> ／ ' + list.length + ' 戸' + (cnt.skip ? '（未実施 ' + cnt.skip + '）' : '') +
+      (ngCount ? '　<span class="ngc">異常 ' + ngCount + '</span>' : '') + '</span><span>作業者：' + esc(SET.worker || "未設定") + '</span>'
+    : '';
+  if (!list.length){
+    box.innerHTML = '<div id="schedEmpty">' + (dayKeys.length ? 'この日の予定はありません。' : '予定がまだありません。<br>台帳で書き出した予定ファイルを「予定を読み込む」で入れてください。') + '</div>';
+    return;
+  }
+  list.forEach(it=>{
+    const st = schedStatus(it);
+    const r = schedRec(it.key);
+    const res = schedResult(it);
+    const isNg = !it.skip && res && res.judge === "ng";
+    const row = el("div",{class:"si " + st.cls + (isNg ? " ng" : "") + (it.extra ? " extra" : "") + (r && r.id === curId ? " cur" : "")});
+    const main = el("div",{class:"si-main"});
+    const prevNg = it.prevJudge === "異常有り";
+    main.innerHTML =
+      '<div class="si-room">' + esc((it.bango ? it.bango + "-" : "") + it.room) + (it.extra ? '<span class="si-tag">予定外</span>' : '') + '</div>' +
+      '<div class="si-form">' + esc(it.danchi) + '　' + esc(it.formName || "帳票未指定") + '</div>' +
+      ((it.prevJudge || it.prevItems) ? '<div class="si-prev' + (prevNg ? ' ng' : '') + '">昨年：' + esc(it.prevJudge || "") + (it.prevItems ? '（' + esc(it.prevItems) + '）' : '') + '</div>' : '') +
+      '<div class="si-st ' + st.cls + '">' + esc(st.label) + '</div>' +
+      schedResultHtml(it, st);
+    main.addEventListener("click", ()=>{ if (it.skip){ if (confirm("未実施になっています。取り消して報告書を開きますか？")) { schedUpdate(it.key, x => { delete x.skip; }); schedOpen(it.key); } return; } schedOpen(it.key); });
+    const btns = el("div",{class:"si-btns"});
+    const bo = el("button",{type:"button",text: st.cls === "todo" ? "開く" : st.cls === "skip" ? "取消" : "続き"});
+    bo.addEventListener("click", ()=>{
+      if (it.skip){ schedUpdate(it.key, x => { delete x.skip; }); renderSched(); return; }
+      schedOpen(it.key);
+    });
+    btns.appendChild(bo);
+    if (st.cls === "todo"){
+      const bs = el("button",{type:"button",class:"skipb",text:"未実施"});
+      bs.addEventListener("click", ()=> openSkipSheet(it.key));
+      btns.appendChild(bs);
+    }
+    if (it.extra && st.cls === "todo"){
+      const bd = el("button",{type:"button",class:"skipb",text:"削除"});
+      bd.addEventListener("click", ()=>{ if (confirm("この予定外の部屋を一覧から消しますか？")) { schedWrite(schedAll().filter(x => x.key !== it.key)); renderSched(); } });
+      btns.appendChild(bd);
+    }
+    row.appendChild(main); row.appendChild(btns);
+    box.appendChild(row);
+  });
+}
+// 未実施の理由を選ぶ
+function openSkipSheet(key){
+  const it = schedFind(key);
+  if (!it) return;
+  const sheet = $("editSheet");
+  sheet.querySelector(".es-title").textContent = "未実施：" + (it.bango ? it.bango + "-" : "") + it.room + "　" + it.danchi;
+  const body = sheet.querySelector(".es-body"), btns = sheet.querySelector(".es-btns");
+  body.innerHTML = ""; btns.innerHTML = "";
+  body.appendChild(el("div",{class:"es-hint",text:"点検できなかった理由を選んでください。報告書は作らず、台帳には「未実施」として送られます。"}));
+  let reason = "不在";
+  const chips = el("div",{class:"chips big"});
+  ["不在","拒否","その他"].forEach(v=>{
+    const b = el("button",{type:"button",class:"chip" + (v === reason ? " on" : ""),text:v});
+    b.addEventListener("click", ()=>{ reason = v; chips.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c.textContent === v)); });
+    chips.appendChild(b);
+  });
+  body.appendChild(chips);
+  const memo = el("input",{type:"text",placeholder:"メモ（任意）"});
+  memo.style.marginTop = "10px";
+  body.appendChild(memo);
+  const mk = (label, cls, fn)=>{ const b = el("button",{class:cls,text:label}); b.addEventListener("click",fn); btns.appendChild(b); };
+  mk("キャンセル","ghost", ()=> sheet.classList.remove("on"));
+  mk("未実施にする","primary", ()=>{
+    schedUpdate(key, x => { x.skip = { reason, memo:memo.value.trim(), at:Date.now(), worker:(SET.worker||"").trim() }; });
+    sheet.classList.remove("on");
+    renderSched();
+    $("saveState").textContent = "未実施にしました（" + reason + "）";
+  });
+  sheet.classList.add("on");
+}
+// 予定外の部屋を追加
+function openExtraSheet(){
+  const sheet = $("editSheet");
+  sheet.querySelector(".es-title").textContent = "予定外の部屋を追加";
+  const body = sheet.querySelector(".es-body"), btns = sheet.querySelector(".es-btns");
+  body.innerHTML = ""; btns.innerHTML = "";
+  body.appendChild(el("div",{class:"es-hint",text:"予定に無い部屋を点検したときに使います。" + fmtDateJ(schedDay) + "の予定に「予定外」として加わります。"}));
+  let cat = FORMS[0].cat, formId = FORMS[0].id;
+  const catChips = el("div",{class:"chips big"}), formChips = el("div",{class:"chips"});
+  const drawForms = ()=>{
+    formChips.innerHTML = "";
+    FORMS.filter(f => f.cat === cat).forEach(f=>{
+      const b = el("button",{type:"button",class:"chip" + (f.id === formId ? " on" : ""),text:f.name});
+      b.addEventListener("click", ()=>{ formId = f.id; drawForms(); });
+      formChips.appendChild(b);
+    });
+  };
+  CATS.forEach(c=>{
+    const b = el("button",{type:"button",class:"chip" + (c.id === cat ? " on" : ""),text:c.label});
+    b.addEventListener("click", ()=>{ cat = c.id; formId = FORMS.find(f => f.cat === cat).id; catChips.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x.textContent === c.label)); drawForms(); drawDanchi(); });
+    catChips.appendChild(b);
+  });
+  drawForms();
+  const danchi = el("input",{type:"text",placeholder:"団地名"});
+  const dChips = el("div",{class:"chips"});
+  const drawDanchi = ()=>{
+    dChips.innerHTML = "";
+    const names = DANCHI_PRESET[cat].concat(danchiHist());
+    schedAll().forEach(x => { if (x.danchi && !names.includes(x.danchi)) names.push(x.danchi); });
+    names.forEach(n=>{ const b = el("button",{type:"button",class:"chip",text:n}); b.addEventListener("click", ()=>{ danchi.value = n; dChips.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x.textContent === n)); }); dChips.appendChild(b); });
+  };
+  drawDanchi();
+  const bango = el("input",{type:"text",inputmode:"numeric",placeholder:"号棟 3-3-1"});
+  const room = el("input",{type:"text",inputmode:"numeric",placeholder:"号室 205"});
+  const row = el("div",{class:"es-row"},[bango, room]);
+  [["帳票", catChips], ["", formChips], ["団地名", danchi], ["", dChips], ["号棟・号室", row]].forEach(([lab, e])=>{
+    const f = el("div",{class:"f"});
+    if (lab) f.appendChild(el("label",{text:lab}));
+    f.appendChild(e); body.appendChild(f);
+  });
+  const mk = (label, cls, fn)=>{ const b = el("button",{class:cls,text:label}); b.addEventListener("click",fn); btns.appendChild(b); };
+  mk("キャンセル","ghost", ()=> sheet.classList.remove("on"));
+  mk("報告書を開く","primary", ()=>{
+    const F = formOf(formId);
+    const it = { date:schedDay, cat:CATS.find(c => c.id === cat).label.replace(/（.*）/,""), formName:F.name,
+      danchi:danchi.value.trim(), bango:toHalf(bango.value).trim().replace(/[\s.・]+/g,"-"), room:toHalf(room.value).trim(), extra:true };
+    if (!it.room && !confirm("号室が空です。このまま追加しますか？")) return;
+    it.key = "x|" + schedKeyOf(it) + "|" + Date.now();
+    const a = schedAll(); a.push(it); schedWrite(a);
+    danchiRemember(it.danchi);
+    sheet.classList.remove("on");
+    schedOpen(it.key);
+  });
+  sheet.classList.add("on");
+}
+// 台帳から書き出した予定ファイルを読み込む(同じ部屋は上書き、端末側の状態は残す)
+function schedImportFile(file){
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    try{
+      const o = JSON.parse(rd.result);
+      if (!o || o.app !== "hikarigaoka-houkoku" || o.type !== "schedule" || !Array.isArray(o.items)) throw new Error("形式違い");
+      const a = schedAll();
+      let added = 0, updated = 0, moved = 0;
+      const items = o.items.map(src => {
+        const it = { date:String(src.date||""), cat:String(src.cat||""), formName:String(src.formName||""),
+          danchi:String(src.danchi||"").trim(), bango:toHalf(src.bango||"").trim(), room:toHalf(src.room||"").trim(),
+          prevJudge:String(src.prevJudge||""), prevItems:String(src.prevItems||""), prevRemark:String(src.prevRemark||"") };
+        it.key = schedKeyOf(it);
+        return it;
+      }).filter(it => it.date);
+      const inFile = new Set(items.map(it => it.key));
+      items.forEach(it=>{
+        const i = a.findIndex(x => x.key === it.key);
+        if (i >= 0){ Object.assign(a[i], it); updated++; return; }
+        // 予定日が変わった部屋: 同じ部屋・同じ帳票で、まだ手を付けていない(未着手)古い予定を新しい日付へ移す。
+        // 入力中・完了・未実施・予定外の分と、今回のファイルにも入っている日付の分は残す
+        const j = a.findIndex(x => !x.extra && !x.skip && !inFile.has(x.key) && x.key.split("|").slice(1).join("|") === it.key.split("|").slice(1).join("|") && !schedRec(x.key));
+        if (j >= 0){ Object.assign(a[j], it); moved++; } else { a.push(it); added++; }
+      });
+      if (!schedWrite(a)) throw new Error("容量オーバー");
+      const dates = o.items.map(x => x.date).filter(Boolean).sort();
+      if (dates.length && !dates.includes(schedDay)) schedDay = dates.find(d => d >= todayStr()) || dates[0];
+      renderSched();
+      alert("予定を読み込みました：追加 " + added + " 件" + (updated ? " / 更新 " + updated + " 件" : "") + (moved ? " / 予定日の変更 " + moved + " 件" : "") + "。");
+    }catch(err){ alert("予定ファイルを読み込めませんでした。台帳の「予定ファイルを書き出す」で作ったファイルを選んでください。"); }
+  };
+  rd.readAsText(file);
+}
+$("schedPrev").addEventListener("click", ()=>{ schedDay = shiftDay(schedDay, -1); renderSched(); });
+$("schedNext").addEventListener("click", ()=>{ schedDay = shiftDay(schedDay, 1); renderSched(); });
+$("schedToday").addEventListener("click", ()=>{ schedDay = todayStr(); renderSched(); });
+$("btnExtra").addEventListener("click", openExtraSheet);
+$("btnSchedImport").addEventListener("click", ()=> $("fileSched").click());
+$("fileSched").addEventListener("change", e=>{ if (e.target.files[0]) schedImportFile(e.target.files[0]); e.target.value = ""; });
+function shiftDay(s, n){ const p = s.split("/"); const d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]) + n); return d.getFullYear() + "/" + pad2(d.getMonth()+1) + "/" + pad2(d.getDate()); }
+
+/* ===================================================================
+   4. 帳票(プレビュー・印刷)
+   =================================================================== */
+function dateText(dt){
+  const sp = (v, w) => v ? v : "　".repeat(w);
+  return "令和　" + sp(dt.y,1) + "年　" + sp(dt.m,1) + "　月　" + sp(dt.d,1) + "　日";
+}
+function bangoText(){
+  const parts = toHalf(D.bango).split("-").map(s=>s.trim()).filter(Boolean);
+  return parts.length ? parts.join("　-　") + "　-" : "　　-　　-　　-";
+}
+function choiceHtml(k){
+  const v = D.res[k];
+  const [a,b] = CH[ITEM[k][2]];
+  return '<span class="opt' + (v===0?" on":"") + '">' + a + '</span><span class="dot">・</span>' +
+         '<span class="opt' + (v===1?" on":"") + '">' + b + '</span>';
+}
+function box(on){ return '<span class="box">' + (on ? "✓" : "") + '</span>'; }
+
+// 帳票の行と各マスを組み立てる。行の高さは比率(fr)。
+function layout(F){
+  const rows = [], cells = [];
+  let r = 0;
+  const row = h => { rows.push(h); return ++r; };
+  const add = (r1,c1,r2,c2,html,cls,edit) => cells.push({r1,c1,r2,c2,html,cls,edit});
+
+  let a = row(24);
+  add(a,1,a,5, esc(F.title), "b f11 u1 fit");
+  add(a,9,a,9, F.period, "ctr f11 l1 t1 r1 u1");
+  a = row(16);
+  add(a,6,a,9, "東京熱供給株式会社", "rgt f11");
+  a = row(22);
+  add(a,1,a,6, esc(D.danchi), "f12 b fit tap", "danchi");
+  add(a,7,a,9, "光が丘支社", "rgt f11");
+  row(8);
+  a = row(24);
+  add(a,2,a,3, esc(bangoText()), "u1 fit tap", "bango");
+  add(a,4,a,4, '<span>' + esc(D.room) + '</span><span>号室</span>', "u1 between tap", "room");
+  row(10);
+  F.dates.forEach((label,i)=>{
+    if (i) row(6);
+    a = row(24);
+    add(a,2,a,6, esc(label), "u1 fit");
+    add(a,7,a,9, dateText(D.dates[i]), "u1 rgt tap", "date");
+  });
+  row(14);
+
+  a = row(24);
+  add(a,1,a,3, "点検項目", "ctr l3 t3 u3 r1");
+  add(a,4,a,7, esc(F.hdr), "ctr t3 u3 r1");
+  add(a,8,a,9, "点検結果", "ctr t3 u3 r3");
+  const first = r + 1;
+  F.groups.forEach(([gname, keys], gi)=>{
+    const gs = r + 1;
+    keys.forEach((k, ii)=>{
+      const [name, content] = ITEM[k];
+      const lastOfGroup = ii === keys.length - 1;
+      const u = lastOfGroup ? (gi === F.groups.length - 1 ? "uw" : "u2") : "u1";
+      const nm = name.split("\n").map(s => "　" + s).join("\n");
+      a = row(name.includes("\n") ? 32 : 28);
+      const small = name.length > 24 ? " f9" : "";
+      if (content){
+        add(a,4,a,5, esc(nm), u + small + " fit");
+        add(a,6,a,7, esc(content), u + " r1 f9 fit");
+      } else {
+        add(a,4,a,7, esc(nm), u + " r1" + small + " fit");
+      }
+      add(a,8,a,9, choiceHtml(k), u + " r3 ctr tap", "res:" + k);
+    });
+    const u = gi === F.groups.length - 1 ? "uw" : "u2";
+    add(gs,2,r,3, esc(gname), "ctr r1 " + u);
+  });
+  // 列が狭いので「メーター／ボックス内」の位置で改行する
+  add(first,1,r,1, esc(F.area.replace("メーター","メーター\n")), "ctr l3 r1 uw wrap");
+
+  a = row(24); row(24); row(24);
+  add(a,1,a+2,1, "備考", "ctr l3 r1 u3");
+  add(a,2,a+2,9, esc(trimTail(D.remark)), "top wrap r3 u3 tap", "remark");
+  row(14);
+
+  a = row(48);
+  add(a,1,a,9, "", "g round");
+  const ov = overall();
+  add(a,2,a,3, "点検結果", "f18 ctr");
+  add(a,5,a,6, box(ov === "ok") + "異常無し", "f16 tap", "overall");
+  add(a,7,a,8, box(ov === "ng") + "異常有り", "f16 tap", "overall");
+  row(14);
+  a = row(18);
+  add(a,8,a,8, "確認者名", "ctr f9 l1 t1 r1 u1");
+  add(a,9,a,9, "作業者名", "ctr f9 t1 r1 u1");
+  a = row(46);
+  add(a,8,a,8, esc(D.checker), "ctr f11 l1 r1 u1 fit tap", "checker");
+  add(a,9,a,9, esc(D.worker), "ctr f11 r1 u1 fit tap", "worker");
+  return { rows, cells };
+}
+
+function render(){
+  const F = formOf(D.form);
+  const L = layout(F);
+  const sh = $("sheet");
+  // 下端に余白行を足す(罫線が用紙の縁に接して細らないように)
+  sh.style.gridTemplateRows = L.rows.map(h => h + "fr").join(" ") + " 6fr";
+  sh.innerHTML = "";
+  L.cells.forEach(c=>{
+    const d = document.createElement("div");
+    d.className = (c.cls.split(" ").includes("g") ? "" : "c ") + c.cls;
+    d.style.gridArea = c.r1 + " / " + c.c1 + " / " + (c.r2+1) + " / " + (c.c2+1);
+    d.innerHTML = c.html;
+    if (c.edit) d.dataset.edit = c.edit;
+    sh.appendChild(d);
+  });
+  shrinkToFit();
+}
+
+// 欄に入りきらない文字は縮めて収める
+function shrinkToFit(){
+  const sheet = $("sheet");
+  if (!sheet.clientWidth) return;
+  const meas = document.createElement("span");
+  meas.style.cssText = "position:absolute;visibility:hidden;white-space:pre;left:-9999px;top:0";
+  document.body.appendChild(meas);
+  sheet.querySelectorAll(".c.fit").forEach(c=>{
+    c.style.fontSize = "";
+    const txt = c.textContent;
+    if (!txt) return;
+    const cs = getComputedStyle(c);
+    const avail = c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    if (avail <= 0) return;
+    meas.style.font = cs.font;
+    meas.textContent = txt;
+    const w = meas.getBoundingClientRect().width;
+    if (w > avail) c.style.fontSize = Math.max(5, parseFloat(cs.fontSize) * avail / w) + "px";
+  });
+  meas.remove();
+}
+
+// プレビューのマスをタップしたとき
+$("sheet").addEventListener("click", e=>{
+  const c = e.target.closest("[data-edit]");
+  if (!c) return;
+  const k = c.dataset.edit;
+  if (k.startsWith("res:")){
+    // 未入力 → 良い方 → 悪い方 → 未入力 の順に切り替える
+    const key = k.slice(4);
+    const v = D.res[key];
+    if (v === 0) D.res[key] = 1;
+    else if (v === 1) delete D.res[key];
+    else D.res[key] = 0;
+    touch(); fillItems(); fillOverall();
+    return;
+  }
+  if (k === "overall"){
+    D.overall = overall() === "ok" ? "ng" : "ok";
+    touch(); fillOverall();
+    return;
+  }
+  // それ以外は入力タブの該当欄へ移動
+  const target = { danchi:"danchi", bango:"bango", room:"room", date:"dt0y", remark:"remark", checker:"checker", worker:"worker" }[k];
+  showTab("form");
+  const t = target && $(target);
+  if (t){ t.scrollIntoView({block:"center"}); setTimeout(()=> t.focus(), 200); }
+});
+
+/* ===================================================================
+   5. 保存・一覧・タブ・印刷
+   =================================================================== */
+let saveTimer = null;
+function touch(){
+  $("saveState").textContent = "入力中…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 400);
+  if ($("preview").style.display === "block") render();
+}
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify(D));
+    const n = new Date();
+    $("saveState").textContent = "保存済 " + String(n.getHours()).padStart(2,"0") + ":" + String(n.getMinutes()).padStart(2,"0");
+  }catch(e){ $("saveState").textContent = "保存できません"; }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return;
+    D = normalize(JSON.parse(raw));
+    $("saveState").textContent = "前回の続き";
+  }catch(e){}
+}
+function loadSet(){
+  try{ const o = JSON.parse(localStorage.getItem(KEY_SET)||"null"); if (o) SET = { checker:o.checker||"", worker:o.worker||"" }; }catch(e){}
+  $("defChecker").value = SET.checker; $("defWorker").value = SET.worker;
+  [["defChecker","checker"],["defWorker","worker"]].forEach(([id,k])=>{
+    $(id).addEventListener("input", e=>{
+      SET[k] = e.target.value;
+      try{ localStorage.setItem(KEY_SET, JSON.stringify(SET)); }catch(_){}
+      $("saveState").textContent = "保存済(既定の名前)";
+      fillDoneBtn();
+    });
+  });
+}
+
+function recAll(){ try{ const a = JSON.parse(localStorage.getItem(KEY_REC)||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function recWrite(a){ try{ localStorage.setItem(KEY_REC, JSON.stringify(a)); return true; }catch(e){ return false; } }
+function recLabel(d){
+  const F = formOf(d.form);
+  const dt0 = d.dates && d.dates[0] || {};
+  const dt = (dt0.y || dt0.m || dt0.d) ? "R" + (dt0.y||"?") + "/" + (dt0.m||"?") + "/" + (dt0.d||"?") : "日付なし";
+  const roomTxt = [toHalf(d.bango||"").trim(), (d.room||"").trim()].filter(Boolean).join("-");
+  const where = ((d.danchi||"").trim() || "団地名なし") + (roomTxt ? "　" + roomTxt + "号室" : "");
+  const cat = CATS.find(c=>c.id===F.cat).label.replace(/（.*）/,"");
+  return { dt, where, form: cat + " " + F.name };
+}
+function recSave(){
+  danchiRemember(D.danchi);
+  const a = recAll();
+  const now = Date.now();
+  if (curId){
+    const i = a.findIndex(r => r.id === curId);
+    if (i >= 0){
+      a[i] = { id:curId, savedAt:now, data:JSON.parse(JSON.stringify(D)) };
+      if (!recWrite(a)){ alert("保存できませんでした。端末の空き容量を確認してください。"); return; }
+      $("saveState").textContent = "上書き保存しました";
+      return;
+    }
+  }
+  const id = "r" + now + "-" + Math.random().toString(36).slice(2,7);
+  a.unshift({ id, savedAt:now, data:JSON.parse(JSON.stringify(D)) });
+  if (!recWrite(a)){ alert("保存できませんでした。端末の空き容量を確認してください。"); return; }
+  setCur(id);
+  $("saveState").textContent = "保存しました";
+}
+function recOpen(id){
+  const r = recAll().find(x => x.id === id);
+  if (!r) return;
+  D = normalize(r.data);
+  setCur(id);
+  fillForm(); save(); showTab("form");
+  $("saveState").textContent = "保存分を開きました";
+}
+
+/* 複製: 同じ団地を続けて回るので、毎回打ち直さずに済むようにする。
+   号室と点検結果は必ず空に戻す(前の部屋の結果が残った書類を作らないため)。 */
+const DUP_GROUPS = [
+  { key:"place", label:"団地名・号棟",           def:true,  apply:(b,s)=>{ b.danchi = s.danchi||""; b.bango = s.bango||""; } },
+  { key:"form",  label:"帳票の種類",             def:true,  apply:(b,s)=>{ b.form = s.form; } },
+  { key:"dates", label:"点検日",                 def:true,  apply:(b,s)=>{ b.dates = JSON.parse(JSON.stringify(s.dates||b.dates)); } },
+  { key:"names", label:"確認者名・作業者名",     def:true,  apply:(b,s)=>{ b.checker = s.checker||""; b.worker = s.worker||""; } },
+  { key:"remark",label:"備考",                   def:false, apply:(b,s)=>{ b.remark = s.remark||""; } },
+];
+function loadDupSel(){ try{ const o = JSON.parse(localStorage.getItem(KEY_DUP)||"null"); return (o && typeof o === "object") ? o : {}; }catch(e){ return {}; } }
+function openDupSheet(id){
+  const r = recAll().find(x => x.id === id);
+  if (!r) return;
+  const sheet = $("editSheet");
+  sheet.querySelector(".es-title").textContent = "複製する項目を選ぶ";
+  const body = sheet.querySelector(".es-body"), btns = sheet.querySelector(".es-btns");
+  body.innerHTML = ""; btns.innerHTML = "";
+  body.appendChild(el("div",{class:"es-hint",text:"チェックした項目を引き継いで新しい報告書を作ります。号室と点検結果は必ず空になります。"}));
+  const saved = loadDupSel(), boxes = {};
+  DUP_GROUPS.forEach(g=>{
+    const cb = el("input",{type:"checkbox"});
+    cb.checked = (g.key in saved) ? !!saved[g.key] : g.def;
+    body.appendChild(el("label",{class:"dup-opt"},[cb, el("span",{text:g.label})]));
+    boxes[g.key] = cb;
+  });
+  const mk = (label, cls, fn)=>{ const b = el("button",{class:cls,text:label}); b.addEventListener("click",fn); btns.appendChild(b); };
+  mk("キャンセル","ghost", ()=> sheet.classList.remove("on"));
+  mk("複製する","primary", ()=>{
+    const sel = {};
+    DUP_GROUPS.forEach(g=> sel[g.key] = boxes[g.key].checked);
+    try{ localStorage.setItem(KEY_DUP, JSON.stringify(sel)); }catch(e){}
+    sheet.classList.remove("on");
+    const b = blank();
+    DUP_GROUPS.forEach(g=>{ if (sel[g.key]) g.apply(b, r.data); });
+    D = b; setCur(null);
+    fillForm(); save(); showTab("form");
+    $("saveState").textContent = "複製しました（号室・結果は空）";
+  });
+  sheet.classList.add("on");
+}
+$("editSheet").querySelector(".es-back").addEventListener("click", ()=> $("editSheet").classList.remove("on"));
+
+function recDelete(id){
+  const r = recAll().find(x => x.id === id);
+  const L = r ? recLabel(r.data) : null;
+  if (!confirm("この保存を削除します。よろしいですか？" + (L ? "\n\n" + L.dt + "　" + L.where : ""))) return;
+  recWrite(recAll().filter(x => x.id !== id));
+  if (curId === id) setCur(null);
+  renderList();
+}
+function safeName(s){ return String(s||"").replace(/[\\/:*?"<>|\n\r\t]/g,"_").trim(); }
+function recExportOne(id){
+  const r = recAll().find(x => x.id === id);
+  if (!r) return;
+  const payload = { app:"hikarigaoka-houkoku", type:"report", version:APP_VER, exportedAt:new Date().toISOString(), id:r.id, savedAt:r.savedAt, data:r.data };
+  const L = recLabel(r.data);
+  const name = [L.dt.replace(/\//g,"-"), L.where].map(safeName).join("_") + ".json";
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(()=> URL.revokeObjectURL(a.href), 1000);
+}
+function recImportFiles(fileList){
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  let added = 0, updated = 0, failed = 0, pending = files.length;
+  const finish = ()=>{
+    if (--pending > 0) return;
+    renderList();
+    alert("読み込み：追加 " + added + " 件" + (updated ? " / 上書き " + updated + " 件" : "") + (failed ? " / 失敗 " + failed + " 件" : "") + "。");
+  };
+  files.forEach(f=>{
+    const rd = new FileReader();
+    rd.onload = ()=>{
+      try{
+        const o = JSON.parse(rd.result);
+        if (!o || o.app !== "hikarigaoka-houkoku" || typeof o.data !== "object") throw new Error("形式違い");
+        const a = recAll();
+        const i = o.id ? a.findIndex(x => x.id === o.id) : -1;
+        const rec = { id:o.id || ("r" + Date.now() + "-" + Math.random().toString(36).slice(2,7)), savedAt:o.savedAt || Date.now(), data:normalize(o.data) };
+        if (i >= 0){ a[i] = rec; updated++; } else { a.unshift(rec); added++; }
+        if (!recWrite(a)) throw new Error("容量オーバー");
+      }catch(err){ failed++; }
+      finish();
+    };
+    rd.onerror = ()=>{ failed++; finish(); };
+    rd.readAsText(f);
+  });
+}
+function renderList(){
+  const box = $("listBox");
+  const a = recAll();
+  if (!a.length){
+    box.innerHTML = '<div id="listEmpty">まだ保存はありません。<br>入力して「保存」を押すと、ここに貯まります。</div>';
+    return;
+  }
+  box.innerHTML = "";
+  a.forEach(r=>{
+    const L = recLabel(r.data);
+    const ov = overall(normalize(r.data));   // 一覧に判定を出す
+    const main = el("div",{class:"rec-main",html:
+      '<div class="rec-d">' + esc(L.dt) + (r.id === curId ? ' <span class="rec-badge">編集中</span>' : '') +
+      (csvDone(r) ? ' <span class="rec-badge csv">CSV済</span>' : '') + '</div>' +
+      '<div class="rec-c">' + esc(L.where) + '</div>' +
+      '<div class="rec-t">' + esc(L.form) + (ov === "ng" ? '　<span class="ng">異常有り</span>' : ov === "ok" ? "　異常無し" : "　未判定") + '</div>'});
+    const btns = el("div",{class:"rec-btns"});
+    [["開く","",()=>recOpen(r.id)],["複製","dup",()=>openDupSheet(r.id)],["書き出し","exp",()=>recExportOne(r.id)],["削除","del",()=>recDelete(r.id)]]
+      .forEach(([t,cls,fn])=>{ const b = el("button",{class:cls,text:t}); b.addEventListener("click",fn); btns.appendChild(b); });
+    box.appendChild(el("div",{class:"rec" + (r.id === curId ? " cur" : "")},[main, btns]));
+  });
+}
+
+/* ---------- Excel台帳用 CSV ----------
+   1報告 = 1行。点検項目は全帳票の項目を列に並べ、その帳票に無い項目は空欄。
+   項目列の見出しは「設備｜項目｜点検内容」。台帳側はこの見出しで明細に分解する。
+   ID で突き合わせるので、同じ報告書を何度取り込んでも二重にならない(後から直した分は上書き)。 */
+const CSV_BASE = ["ID","保存日時","区分","帳票","点検種別","帳票ID","団地名","号棟","号室",
+  "点検日1","点検日2","点検日3","総合判定","判定方法","異常項目","未入力数","備考","確認者名","作業者名","アプリ版",
+  "予定日","予定外","未実施理由"];
+const GRP_OF = { k:"給湯", d:"暖房", t:"給湯", r:"放熱器" };
+function itemHeader(k){
+  const [name, content] = ITEM[k];
+  return [GRP_OF[k[0]], name.replace(/\n/g,""), content || "-"].join("｜");
+}
+function pad2(n){ return String(n).padStart(2,"0"); }
+function fmtStamp(t){ const d = new Date(t); return d.getFullYear() + "/" + pad2(d.getMonth()+1) + "/" + pad2(d.getDate()) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+// 令和の年月日 → 西暦の日付文字列。欠けていれば空
+function seireki(dt){ return (dt && dt.y && dt.m && dt.d) ? (2018 + Number(dt.y)) + "/" + pad2(dt.m) + "/" + pad2(dt.d) : ""; }
+function csvCell(v){ v = String(v == null ? "" : v); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; }
+function csvRow(r){
+  const d = normalize(r.data), F = formOf(d.form), keys = itemsOf(F);
+  const it = d.schedKey ? schedFind(d.schedKey) : null;
+  const ov = overall(d);
+  const bad = keys.filter(k => d.res[k] === 1).map(k => GRP_OF[k[0]] + " " + ITEM[k][0].split("\n")[0] + "：" + CH[ITEM[k][2]][1]);
+  const unset = keys.filter(k => d.res[k] !== 0 && d.res[k] !== 1).length;
+  const base = [
+    r.id, fmtStamp(r.savedAt), CATS.find(c => c.id === F.cat).label.replace(/（.*）/,""), F.name, F.period, F.id,
+    (d.danchi||"").trim(), toHalf(d.bango||"").trim(), toHalf(d.room||"").trim(),
+    seireki(d.dates[0]), F.dates.length > 1 ? seireki(d.dates[1]) : "", F.dates.length > 2 ? seireki(d.dates[2]) : "",
+    ov === "ok" ? "異常無し" : ov === "ng" ? "異常有り" : "未判定", d.overall ? "手動" : "自動",
+    bad.join(" / "), unset, trimTail(d.remark), d.checker, d.worker, APP_VER,
+    it ? it.date : "", (it && it.extra) ? "予定外" : "", ""
+  ];
+  const items = Object.keys(ITEM).map(k => (keys.includes(k) && (d.res[k] === 0 || d.res[k] === 1)) ? CH[ITEM[k][2]][d.res[k]] : "");
+  return base.concat(items).map(csvCell).join(",");
+}
+// 未実施の部屋も1行として台帳に送る(報告書は無いので項目列は空)
+function csvSkipRow(it){
+  const F = formOf(formIdOf(it.cat, it.formName));
+  const base = [
+    "skip|" + it.key, fmtStamp(it.skip.at), it.cat, it.formName || F.name, F.period, F.id,
+    it.danchi, it.bango, it.room, it.date, "", "",
+    "未実施", "手動", "", "", it.skip.memo || "", "", it.skip.worker || "", APP_VER,
+    it.date, it.extra ? "予定外" : "", it.skip.reason
+  ];
+  return base.concat(Object.keys(ITEM).map(()=> "")).map(csvCell).join(",");
+}
+// 書き出した後に直して保存し直した分は「まだ送っていない」に戻る
+function csvDone(r){ return !!r.csvAt && r.csvAt >= r.savedAt; }
+function skipDone(it){ return !!it.skip && !!it.skipCsvAt && it.skipCsvAt >= it.skip.at; }
+function csvExport(onlyNew){
+  const a = recAll();
+  const target = a.filter(r => !onlyNew || !csvDone(r));
+  const sched = schedAll();
+  const skips = sched.filter(it => it.skip && (!onlyNew || !skipDone(it)));
+  if (!target.length && !skips.length){ alert(onlyNew ? "まだ送っていない報告書・未実施はありません。" : "保存された報告書がありません。"); return; }
+  const lines = [CSV_BASE.concat(Object.keys(ITEM).map(itemHeader)).map(csvCell).join(",")].concat(target.map(csvRow)).concat(skips.map(csvSkipRow));
+  // Excel で文字化けしないよう BOM 付き UTF-8・改行は CRLF
+  const blob = new Blob(["﻿" + lines.join("\r\n") + "\r\n"], { type:"text/csv" });
+  const n = new Date();
+  const total = target.length + skips.length;
+  const who = (SET.worker || "名前なし").replace(/[\\/:*?"<>|]/g,"_");
+  const name = "光が丘点検_" + n.getFullYear() + pad2(n.getMonth()+1) + pad2(n.getDate()) + "_" + pad2(n.getHours()) + pad2(n.getMinutes()) + "_" + who + "_" + total + "件.csv";
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = name; link.click();
+  setTimeout(()=> URL.revokeObjectURL(link.href), 1000);
+  const now = Date.now();
+  const ids = new Set(target.map(r => r.id));
+  a.forEach(r => { if (ids.has(r.id)) r.csvAt = Math.max(now, r.savedAt); });
+  recWrite(a);
+  const skipKeys = new Set(skips.map(it => it.key));
+  sched.forEach(it => { if (skipKeys.has(it.key)) it.skipCsvAt = Math.max(now, it.skip.at); });
+  schedWrite(sched);
+  renderList();
+  $("saveState").textContent = "CSVを書き出しました（" + total + "件）";
+}
+
+function showTab(which){
+  const pane = { sched:"sched", form:"form", prev:"preview", list:"list", conf:"settings" };
+  const tab  = { sched:"tabSched", form:"tabForm", prev:"tabPrev", list:"tabList", conf:"tabConf" };
+  Object.keys(pane).forEach(k=>{
+    $(pane[k]).style.display = (k === which) ? "block" : "none";
+    $(tab[k]).setAttribute("aria-selected", String(k === which));
+  });
+  if (which === "sched") renderSched();
+  if (which === "form") fillDoneBtn();
+  if (which === "list") renderList();
+  if (which === "prev"){ render(); fitPreview(); shrinkToFit(); }
+}
+function fitPreview(){
+  const wrap = $("pvwrap"), sc = $("pvscale"), sh = $("sheet");
+  const sheetW = sh.offsetWidth;
+  if (!sheetW) return;
+  const cs = getComputedStyle(wrap);
+  const avail = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const k = Math.min(1, avail / sheetW);
+  sc.style.transform = "scale(" + k + ")";
+  sc.style.width  = (sheetW * k) + "px";
+  sc.style.height = (sh.offsetHeight * k) + "px";
+}
+// PDF の既定ファイル名
+function baseName(){
+  const F = formOf(D.form);
+  const dt = D.dates[0];
+  const day = "R" + (dt.y || (new Date().getFullYear()-2018)) + "." + (dt.m || (new Date().getMonth()+1)) + (dt.d ? "." + dt.d : "");
+  const roomTxt = [toHalf(D.bango).trim(), D.room.trim()].filter(Boolean).join("-");
+  return [day, safeName(D.danchi) || "団地名未入力", roomTxt ? safeName(roomTxt) + "号室" : "", F.name.replace(/[（）\s]/g,"")].filter(Boolean).join("_");
+}
+
+$("tabSched").addEventListener("click", ()=> showTab("sched"));
+$("tabForm").addEventListener("click", ()=> showTab("form"));
+$("tabPrev").addEventListener("click", ()=> showTab("prev"));
+$("tabList").addEventListener("click", ()=> showTab("list"));
+$("tabConf").addEventListener("click", ()=> showTab("conf"));
+$("btnImport").addEventListener("click", ()=> $("fileImport").click());
+$("btnCsvNew").addEventListener("click", ()=> csvExport(true));
+$("btnCsvAll").addEventListener("click", ()=> csvExport(false));
+$("fileImport").addEventListener("change", e=>{ recImportFiles(e.target.files); e.target.value = ""; });
+
+function isIOS(){ return /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+$("btnPdf").addEventListener("click", ()=>{
+  showTab("prev");
+  const old = document.title;
+  document.title = baseName();
+  // 印刷画面が実際に開いたかを見張り、開かなかったときだけ案内する
+  let started = false;
+  const onBefore = () => { started = true; };
+  window.addEventListener("beforeprint", onBefore);
+  try{ window.print(); }catch(_){}
+  setTimeout(()=>{
+    window.removeEventListener("beforeprint", onBefore);
+    document.title = old;
+    if (!started && isIOS()){
+      alert("この開き方では PDF 出力ができないようです。\n\nSafari で次のURLを開いてから、もう一度「PDF出力」を押してください。\n\n" + location.href);
+    }
+  }, 1500);
+});
+$("btnNew").addEventListener("click", ()=>{
+  const msg = curId
+    ? "入力欄を白紙にして、新しい報告書を作ります。\n（いま開いている保存分は一覧に残ります）\nよろしいですか？"
+    : "入力内容をすべて消して白紙に戻します。\n（保存一覧は消えません）\nよろしいですか？";
+  if (!confirm(msg)) return;
+  const form = D.form;
+  D = blank(); D.form = form;     // 帳票の種類はそのまま
+  setCur(null); fillForm(); save(); showTab("form");
+  $("saveState").textContent = "白紙に戻しました";
+});
+$("btnSaveRec").addEventListener("click", ()=>{
+  if (!D.danchi.trim() && !D.room.trim() && !Object.keys(D.res).length){
+    if (!confirm("まだ何も入力されていないようです。このまま保存しますか？")) return;
+  }
+  recSave();
+  showTab("list");
+});
+window.addEventListener("resize", ()=>{ if ($("preview").style.display === "block") fitPreview(); });
+
+/* ---- 起動 ---- */
+$("appVer").textContent = APP_VER;
+loadSet();
+D = blank();
+buildCats();
+bindForm();
+load();
+try{
+  const cid = localStorage.getItem(KEY_CUR);
+  if (cid && recAll().some(r => r.id === cid)) curId = cid;
+  else if (cid) localStorage.removeItem(KEY_CUR);
+}catch(e){}
+fillForm();
+render();
+
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  window.addEventListener("load", ()=>{ navigator.serviceWorker.register("./sw.js").catch(()=>{}); });
+}
+</script>
+</body>
+</html>
