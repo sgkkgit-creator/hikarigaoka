@@ -129,7 +129,7 @@ input:focus,textarea:focus{outline:2px solid var(--accent); outline-offset:-1px;
 .rec.cur{border-color:#1565c0; background:#f5f9ff}
 .rec-main{flex:1; min-width:0}
 .rec-d{font-size:12px; color:#555}
-.rec-c{font-weight:700; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rec-c{font-weight:700; font-size:15px; overflow-wrap:anywhere}
 .rec-t{font-size:13px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .rec-t .ng{color:var(--warn); font-weight:700}
 .rec-badge{font-size:11px; color:#1565c0; font-weight:700}
@@ -476,7 +476,7 @@ input:focus,textarea:focus{outline:2px solid var(--accent); outline-offset:-1px;
    1. 帳票の定義 (★光が丘個別報告書.xls の使用中シートから起こしたもの)
    =================================================================== */
 // index.html を更新したら、ここと sw.js の CACHE を一緒に上げること。
-const APP_VER = "0.6";
+const APP_VER = "0.7";
 
 // 点検結果の選択肢。[良い方, 悪い方]
 const CH = { GN:["良","否"], NA:["無","有"], DN:["済","未"] };
@@ -1364,9 +1364,10 @@ function recLabel(d){
   const dt0 = d.dates && d.dates[0] || {};
   const dt = (dt0.y || dt0.m || dt0.d) ? "R" + (dt0.y||"?") + "/" + (dt0.m||"?") + "/" + (dt0.d||"?") : "日付なし";
   const roomTxt = [toHalf(d.bango||"").trim(), (d.room||"").trim()].filter(Boolean).join("-");
-  const where = ((d.danchi||"").trim() || "団地名なし") + (roomTxt ? "　" + roomTxt + "号室" : "");
+  const danchi = (d.danchi||"").trim() || "団地名なし", room = roomTxt ? roomTxt + "号室" : "";
+  const where = danchi + (room ? "　" + room : "");
   const cat = CATS.find(c=>c.id===F.cat).label.replace(/（.*）/,"");
-  return { dt, where, form: cat + " " + F.name };
+  return { dt, where, danchi, room, form: cat + " " + F.name };
 }
 function recSave(){
   danchiRemember(D.danchi);
@@ -1499,7 +1500,8 @@ function renderList(){
     const main = el("div",{class:"rec-main",html:
       '<div class="rec-d">' + esc(L.dt) + (r.id === curId ? ' <span class="rec-badge">編集中</span>' : '') +
       (csvDone(r) ? ' <span class="rec-badge csv">CSV済</span>' : '') + '</div>' +
-      '<div class="rec-c">' + esc(L.where) + '</div>' +
+      '<div class="rec-c">' + esc(L.danchi) + '</div>' +
+      (L.room ? '<div class="rec-c">' + esc(L.room) + '</div>' : '') +
       '<div class="rec-t">' + esc(L.form) + (ov === "ng" ? '　<span class="ng">異常有り</span>' : ov === "ok" ? "　異常無し" : "　未判定") + '</div>'});
     const btns = el("div",{class:"rec-btns"});
     [["開く","",()=>recOpen(r.id)],["複製","dup",()=>openDupSheet(r.id)],["書き出し","exp",()=>recExportOne(r.id)],["削除","del",()=>recDelete(r.id)]]

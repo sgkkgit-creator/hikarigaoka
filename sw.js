@@ -3,7 +3,7 @@
    ・アイコン等：キャッシュ優先→無ければ取得
    ・新しい index.html を上げるときは、下の CACHE 名の末尾と index.html の APP_VER を一緒に上げる
 */
-const CACHE = 'hikarigaoka-houkoku-v0_6';
+const CACHE = 'hikarigaoka-houkoku-v0_7';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
