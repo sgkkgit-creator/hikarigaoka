@@ -476,7 +476,7 @@ input:focus,textarea:focus{outline:2px solid var(--accent); outline-offset:-1px;
    1. 帳票の定義 (★光が丘個別報告書.xls の使用中シートから起こしたもの)
    =================================================================== */
 // index.html を更新したら、ここと sw.js の CACHE を一緒に上げること。
-const APP_VER = "0.5";
+const APP_VER = "0.6";
 
 // 点検結果の選択肢。[良い方, 悪い方]
 const CH = { GN:["良","否"], NA:["無","有"], DN:["済","未"] };
@@ -1002,7 +1002,7 @@ function renderSched(){
       schedOpen(it.key);
     });
     btns.appendChild(bo);
-    if (st.cls === "todo"){
+    if (st.cls === "todo" || st.cls === "wip"){
       const bs = el("button",{type:"button",class:"skipb",text:"未実施"});
       bs.addEventListener("click", ()=> openSkipSheet(it.key));
       btns.appendChild(bs);
@@ -1020,8 +1020,12 @@ function renderSched(){
 function openSkipSheet(key){
   const it = schedFind(key);
   if (!it) return;
+  // 開いた後(入力中)に未実施にするときは、報告書を消す。入力があれば先に確認する
+  const res = schedResult(it);
+  if (res && (res.done > 0 || res.remark) &&
+      !confirm("この部屋の報告書に入力した内容は消えます。未実施にしますか？")) return;
   const sheet = $("editSheet");
-  sheet.querySelector(".es-title").textContent = "未実施：" + (it.bango ? it.bango + "-" : "") + it.room + "　" + it.danchi;
+  sheet.querySelector(".es-title").textContent = "未実施："+ (it.bango ? it.bango + "-" : "") + it.room + "　" + it.danchi;
   const body = sheet.querySelector(".es-body"), btns = sheet.querySelector(".es-btns");
   body.innerHTML = ""; btns.innerHTML = "";
   body.appendChild(el("div",{class:"es-hint",text:"点検できなかった理由を選んでください。報告書は作らず、台帳には「未実施」として送られます。"}));
@@ -1040,6 +1044,15 @@ function openSkipSheet(key){
   mk("キャンセル","ghost", ()=> sheet.classList.remove("on"));
   mk("未実施にする","primary", ()=>{
     schedUpdate(key, x => { x.skip = { reason, memo:memo.value.trim(), at:Date.now(), worker:(SET.worker||"").trim() }; });
+    const r = schedRec(key);
+    if (r){
+      recWrite(recAll().filter(x => x.id !== r.id));
+      if (curId === r.id || D.schedKey === key){   // 入力画面に残っていると、保存で報告書が戻ってしまう
+        const form = D.form;
+        D = blank(); D.form = form;
+        setCur(null); fillForm(); save();
+      }
+    }
     sheet.classList.remove("on");
     renderSched();
     $("saveState").textContent = "未実施にしました（" + reason + "）";
